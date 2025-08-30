@@ -9,6 +9,15 @@
 #define PC_SERVER_IP            "192.168.2.107"
 #define PC_SERVER_PORT          7654
 
+// BBB communication
+#define BBB_UART_ID             uart1
+#define BBB_UART_BAUD           115200
+#define BBB_UART_TX_PIN         4
+#define BBB_UART_RX_PIN         5
+
+// Frame protocol configuration
+#define MAX_IMAGE_SIZE          (100 * 1024)  // 100kB max for JPEG
+
 // Retry configuration  
 #define MAX_RETRY_COUNT         5
 #define INITIAL_RETRY_DELAY_MS  1000
