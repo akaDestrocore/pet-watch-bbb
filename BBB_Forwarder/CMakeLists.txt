@@ -35,28 +35,32 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(BBB_Forwarder main.c )
+add_executable(BBB_Forwarder 
+        src/main.c
+)
 
 pico_set_program_name(BBB_Forwarder "BBB_Forwarder")
 pico_set_program_version(BBB_Forwarder "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(BBB_Forwarder 0)
-pico_enable_stdio_usb(BBB_Forwarder 0)
+pico_enable_stdio_usb(BBB_Forwarder 1)
 
 # Add the standard library to the build
 target_link_libraries(BBB_Forwarder
-        pico_stdlib)
+        pico_stdlib
+        hardware_uart
+        hardware_gpio
+)
 
 # Add the standard include files to the build
 target_include_directories(BBB_Forwarder PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
 # Add any user requested libraries
 target_link_libraries(BBB_Forwarder 
         pico_cyw43_arch_lwip_threadsafe_background
-        )
+)
 
 pico_add_extra_outputs(BBB_Forwarder)
-
