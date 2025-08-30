@@ -37,6 +37,7 @@ pico_sdk_init()
 
 add_executable(BBB_Forwarder 
         src/main.c
+        src/wifi.c
 )
 
 pico_set_program_name(BBB_Forwarder "BBB_Forwarder")
