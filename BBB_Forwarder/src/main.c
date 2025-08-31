@@ -4,7 +4,8 @@
 #include "pico/bootrom.h"
 #include "hardware/uart.h"
 #include "wifi.h"
-#include "frame_receiver.h" 
+#include "frame_receiver.h"
+#include "snapshot_forwarder.h"
 
 #define MAX_WIFI_REINIT_TRIES    100
 
@@ -35,6 +36,9 @@ int main()
         }
     }
 
+    // Initialize image forwarder
+    snapshot_forwarder_init();
+
     DBG("Ready! Listening for frame-based transfers from BBB on UART%d\r\n", 
         BBB_UART_ID == uart0 ? 0 : 1);
     DBG("Protocol: [MAGIC:2][SIZE:4][CRC:2][DATA:N][CRC:2]\r\n");
@@ -49,7 +53,11 @@ int main()
             if (frame_receiver_get_data(&image_data, &image_size)) {
                 DBG("Received image from BBB: %u bytes\r\n", image_size);
                 
-                // TODO: snapshot forwarding logic
+                if (snapshot_forwarder_send_to_server(image_data, image_size)) {
+                    DBG("Image successfully forwarded to PC\r\n");
+                } else {
+                    DBG("Failed to forward image to PC\r\n");
+                }
                 
                 // Reset receiver for next transfer
                 frame_receiver_reset();
@@ -71,7 +79,7 @@ int main()
                     break;
                 }
                 // Exponential backoff up to 10s
-                backoff = (backoff * 2 > 10000) ? 10000 : backoff * 2; 
+                backoff = (backoff * 2 > 10000) ? 10000 : backoff * 2;
             }
 
             if (true != reinit_ok) {

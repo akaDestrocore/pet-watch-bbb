@@ -39,6 +39,7 @@ add_executable(BBB_Forwarder
         src/main.c
         src/wifi.c
         src/frame_receiver.c
+        src/snapshot_forwarder.c
 )
 
 pico_set_program_name(BBB_Forwarder "BBB_Forwarder")

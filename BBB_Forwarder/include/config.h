@@ -17,6 +17,7 @@
 
 // Frame protocol configuration
 #define MAX_IMAGE_SIZE          (100 * 1024)  // 100kB max for JPEG
+#define IMAGE_TIMEOUT_MS        15000
 
 // Retry configuration  
 #define MAX_RETRY_COUNT         5
