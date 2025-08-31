@@ -58,5 +58,11 @@ typedef struct {
 bool frame_receiver_init(void);
 // Main function for frame receiver state machine
 bool frame_receiver_process(void);
+// Get data into buffers
+bool frame_receiver_get_data(uint8_t **data, uint32_t *size);
+// Reset structure elements' values
+void frame_receiver_reset(void);
+// Deinitialize frame receiver
+void frame_receiver_deinit(void);
 
 #endif /* FRAME_RECEIVER_H */

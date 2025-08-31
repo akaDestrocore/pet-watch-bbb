@@ -8,6 +8,9 @@ static bool verify_frame_crc(void);
 static uint16_t calculate_crc16(const uint8_t* data, size_t len);
 static void BBB_UART_IRQHandler(void);
 static bool parse_frame_header(void);
+static bool rx_buff_available(void);
+static uint8_t rx_buff_get(void);
+static void rx_buff_put(uint8_t byte);
 
 
 /**
@@ -49,26 +52,15 @@ bool frame_receiver_process(void) {
     // Timeout check
     if (FRAME_IDLE != frame_rec.state && 0 != frame_rec.last_activity) {
         if (now - frame_rec.last_activity > FRAME_TIMEOUT_MS) {
-            frame_rec.state = FRAME_IDLE;
-            frame_rec.frame_index = 0;
-            frame_rec.expected_data_size = 0;
-            frame_rec.received_bytes = 0;
-            frame_rec.last_activity = 0;
-            frame_rec.frame_ready = false;
-            frame_rec.rx_head = 0;
-            frame_rec.rx_tail = 0;
-            
-            // Clear buffers
-            memset(frame_rec.header_buffer, 0, sizeof(frame_rec.header_buffer));
+            frame_receiver_reset();
             DBG("Frame timeout.");
             return false;
         }
     }
 
     // While data is available in ring buffer
-    while (frame_rec.rx_head != frame_rec.rx_tail) {
-        uint8_t byte = frame_rec.rx_buff[frame_rec.rx_tail];
-        frame_rec.rx_tail = (frame_rec.rx_tail + 1) % sizeof(frame_rec.rx_buff);
+    while (true == rx_buff_available()) {
+        uint8_t byte = rx_buff_get();
 
         switch(frame_rec.state) {
             case FRAME_IDLE: {
@@ -84,7 +76,7 @@ bool frame_receiver_process(void) {
             case FRAME_RECEIVING_HEADER: {
                 frame_rec.header_buffer[frame_rec.frame_index++] = byte;
 
-                if (2 == frame_rec.frame_index && FRAME_START_MAGIC_1 == byte) {
+                if (2 == frame_rec.frame_index && FRAME_START_MAGIC_1 != byte) {
                     frame_rec.state = FRAME_IDLE;
                     frame_rec.frame_index = 0;
                     if (byte == FRAME_START_MAGIC_0) {
@@ -140,18 +132,54 @@ bool frame_receiver_process(void) {
     }
 
     if (FRAME_ERROR == frame_rec.state) {
-        frame_rec.state = FRAME_IDLE;
-        frame_rec.frame_index = 0;
-        frame_rec.expected_data_size = 0;
-        frame_rec.received_bytes = 0;
-        frame_rec.last_activity = 0;
-        frame_rec.frame_ready = false;
-        frame_rec.rx_head = 0;
-        frame_rec.rx_tail = 0;
-        
-        // Clear buffers
-        memset(frame_rec.header_buffer, 0, sizeof(frame_rec.header_buffer));
+        frame_receiver_reset();
     }
+
+    return frame_rec.state == FRAME_COMPLETE;
+}
+
+/**
+ * @brief Get received image data
+ * @param data Pointer to receive data pointer
+ * @param size Pointer to receive data size
+ * @return true if data is available, false otherwise
+ */
+bool frame_receiver_get_data(uint8_t **data, uint32_t *size) {
+    if (frame_rec.state == FRAME_COMPLETE && frame_rec.frame_ready && frame_rec.received_bytes > 0) {
+        *data = frame_rec.image_buffer;
+        *size = frame_rec.received_bytes;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Reset frame receiver for next transfer
+ */
+void frame_receiver_reset(void) {
+    frame_rec.state = FRAME_IDLE;
+    frame_rec.frame_index = 0;
+    frame_rec.expected_data_size = 0;
+    frame_rec.received_bytes = 0;
+    frame_rec.last_activity = 0;
+    frame_rec.frame_ready = false;
+    frame_rec.rx_head = 0;
+    frame_rec.rx_tail = 0;
+    
+    // Clear buffers
+    memset(frame_rec.header_buffer, 0, sizeof(frame_rec.header_buffer));
+}
+
+/**
+ * @brief Deinitialize frame receiver
+ */
+void frame_receiver_deinit(void) {
+    // Disable UART IRQs
+    int UART_IRQ = BBB_UART_ID == uart0 ? UART0_IRQ : UART1_IRQ;
+    irq_set_enabled(UART_IRQ, false);
+    uart_set_irqs_enabled(BBB_UART_ID, false, false);
+    
+    memset(&frame_rec, 0, sizeof(Frame_Handle_t));
 }
 
 /**
@@ -161,12 +189,7 @@ static void BBB_UART_IRQHandler(void) {
     while (uart_is_readable(BBB_UART_ID)) {
         uint8_t byte = uart_getc(BBB_UART_ID);
         frame_rec.last_activity = to_ms_since_boot(get_absolute_time());
-        uint16_t next_head = (frame_rec.rx_head + 1) % sizeof(frame_rec.rx_buff);
-        if (next_head != frame_rec.rx_tail) {
-            // Buffer not full
-            frame_rec.rx_buff[frame_rec.rx_head] = byte;
-            frame_rec.rx_head = next_head;
-        }
+        rx_buff_put(byte);
     }
 }
 
@@ -198,7 +221,7 @@ static bool verify_frame_crc(void) {
  * @return Calculated CRC-16 value
  */
 static uint16_t calculate_crc16(const uint8_t* data, size_t len) {
-    uint16_t crc = 0;
+    uint16_t crc = 0xFFFF;
     
     for (size_t i = 0; i < len; i++) {
         crc ^= (uint16_t)data[i] << 8;
@@ -253,4 +276,36 @@ static bool parse_frame_header(void) {
     
     DBG("Frame header parsed: data_size=%u, header_crc=%04x", data_size, header_crc);
     return true;
+}
+
+/**
+ * @brief Check if data is available in ring buffer
+ * @return true if data available, false otherwise
+ */
+static bool rx_buff_available(void) {
+    return frame_rec.rx_head != frame_rec.rx_tail;
+}
+
+/**
+ * @brief Get byte from circular buffer
+ * @return Next byte from buffer
+ */
+static uint8_t rx_buff_get(void) {
+    uint8_t byte = frame_rec.rx_buff[frame_rec.rx_tail];
+    frame_rec.rx_tail = (frame_rec.rx_tail + 1) % sizeof(frame_rec.rx_buff);
+    return byte;
+}
+
+/**
+ * @brief Put byte into circular buffer
+ * @param byte Byte to store
+ */
+static void rx_buff_put(uint8_t byte) {
+    uint16_t next_head = (frame_rec.rx_head + 1) % sizeof(frame_rec.rx_buff);
+    if (next_head != frame_rec.rx_tail) {
+        // Buffer not full
+        frame_rec.rx_buff[frame_rec.rx_head] = byte;
+        frame_rec.rx_head = next_head;
+    }
+
 }

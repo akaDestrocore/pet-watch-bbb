@@ -41,8 +41,19 @@ int main()
 
     while (true) {
         // Check for frame transfers from BBB
-        if (true == frame_receiver_process()) {
-            // TODO: implement snapshot forwarding logic 
+        if (frame_receiver_process()) {
+            // Forward a complete frame to PC
+            uint8_t *image_data;
+            uint32_t image_size;
+            
+            if (frame_receiver_get_data(&image_data, &image_size)) {
+                DBG("Received image from BBB: %u bytes\r\n", image_size);
+                
+                // TODO: snapshot forwarding logic
+                
+                // Reset receiver for next transfer
+                frame_receiver_reset();
+            }
         }
 
         // Check if Wi-Fi is still working
@@ -59,7 +70,8 @@ int main()
                     reinit_ok = true;
                     break;
                 }
-                backoff = (backoff * 2 > 10000) ? 10000 : backoff * 2; // Exponential backoff up to 10s
+                // Exponential backoff up to 10s
+                backoff = (backoff * 2 > 10000) ? 10000 : backoff * 2; 
             }
 
             if (true != reinit_ok) {
