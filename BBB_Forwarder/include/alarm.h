@@ -1,8 +1,10 @@
 #ifndef ALARM_H
 #define ALARM_H
 
+#include "stdio.h"
 #include <stdbool.h>
 #include "pico/stdlib.h"
+#include "config.h"
 #include "hardware/pwm.h"
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
