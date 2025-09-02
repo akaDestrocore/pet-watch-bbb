@@ -40,6 +40,7 @@ add_executable(BBB_Forwarder
         src/wifi.c
         src/frame_receiver.c
         src/snapshot_forwarder.c
+        src/alarm.c
 )
 
 pico_set_program_name(BBB_Forwarder "BBB_Forwarder")
@@ -54,6 +55,7 @@ target_link_libraries(BBB_Forwarder
         pico_stdlib
         hardware_uart
         hardware_gpio
+        hardware_pwm
 )
 
 # Add the standard include files to the build
