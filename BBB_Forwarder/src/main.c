@@ -6,6 +6,7 @@
 #include "wifi.h"
 #include "frame_receiver.h"
 #include "snapshot_forwarder.h"
+#include "alarm.h"
 
 #define MAX_WIFI_REINIT_TRIES    100
 
@@ -20,6 +21,14 @@ int main()
 
     sleep_ms(2000);
     DBG("Pico 2W Image Forwarder Starting...\r\n");
+
+    // Initialize alarm system
+    if (true != alarm_init()) {
+        DBG("Fatal: Alarm system init failed, halting.\r\n");
+        while (true) {
+            tight_loop_contents();
+        }
+    }
 
     // Initialize UART for BBB communication with new frame protocol
     if (true != frame_receiver_init()) {
@@ -44,8 +53,11 @@ int main()
     DBG("Protocol: [MAGIC:2][SIZE:4][CRC:2][DATA:N][CRC:2]\r\n");
 
     while (true) {
-        // Check for frame transfers from BBB
-        if (frame_receiver_process()) {
+        // Process alarm state machine
+        alarm_process();
+        
+        // Check for frame transfers from BBB (but skip if alarm is active to avoid interference)
+        if (!alarm_is_active() && frame_receiver_process()) {
             // Forward a complete frame to PC
             uint8_t *image_data;
             uint32_t image_size;

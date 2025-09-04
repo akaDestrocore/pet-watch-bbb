@@ -243,7 +243,7 @@ static err_t server_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *
     // Look for alarm command
     if (NULL != strstr(response, "ALARM")) {
         DBG("Received ALARM command from server");
-        // TODO: alarm_activate();
+        alarm_activate();
     }
 
     // Check for HTTP 200

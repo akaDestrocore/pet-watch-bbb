@@ -15,6 +15,10 @@
 #define BBB_UART_TX_PIN         4
 #define BBB_UART_RX_PIN         5
 
+// Pin definitions
+#define SERVO_PIN               12
+#define BUZZER_PIN              14
+
 // Frame protocol configuration
 #define MAX_IMAGE_SIZE          (100 * 1024)  // 100kB max for JPEG
 #define IMAGE_TIMEOUT_MS        15000

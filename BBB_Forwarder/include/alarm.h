@@ -10,12 +10,6 @@
 #include "hardware/clocks.h"
 
 /** 
- * @brief Pin definitions
-*/
-#define SERVO_PIN     2
-#define BUZZER_PIN    3
-
-/** 
  * @brief SG90 configuration
 */
 #define SERVO_PWM_FREQ      50

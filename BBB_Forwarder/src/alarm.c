@@ -9,57 +9,70 @@ static uint32_t last_servo_update, last_buzzer_update = 0;
 static uint8_t servo_pos = 0;
 static uint8_t buzzer_beep_count = 0;
 static bool buzzer_on = false;
-static uint16_t servo_wrap_value = 0;
-static uint16_t buzzer_wrap_value = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 static void set_servo_angle(float angle_degrees);
 static void buzzer_on_off(bool enable);
-static uint16_t calculate_servo_pwm_level(uint16_t pulse_width_us);
 
 /**
  * @brief Initialize alarm system (servo and buzzer)
  * @return true on success, false otherwise
  */
 bool alarm_init(void) {
-    // Initialize PWM for servo
+    // Initialize servo PWM
     gpio_set_function(SERVO_PIN, GPIO_FUNC_PWM);
     slice_servo = pwm_gpio_to_slice_num(SERVO_PIN);
     ch_servo = pwm_gpio_to_channel(SERVO_PIN);
     
-    // Set servo to 50 Hz
-    uint32_t clock_freq = clock_get_hz(clk_sys);
-    uint32_t div = clock_freq / (SERVO_PWM_FREQ * (0xFFFF + 1));
-    if (div < 1) {
-        div = 1;
-    }
+    // Configure servo PWM for 50Hz (20ms period)
+    // RP2350 default system clock is 150MHz
+    pwm_config servo_config = pwm_get_default_config();
     
-    pwm_set_clkdiv(slice_servo, (float)div);
-    servo_wrap_value = clock_freq / (div * SERVO_PWM_FREQ) - 1;
-    pwm_set_wrap(slice_servo, servo_wrap_value);
+    // Set div to get 1MHz PWM clock
+    pwm_config_set_clkdiv(&servo_config, 150.0f);
     
-    // Initialize PWM for buzzer module
+    // Set wrap to 20000 for 20ms period
+    pwm_config_set_wrap(&servo_config, 19999);
+    
+    pwm_init(slice_servo, &servo_config, true);
+    
+    // Initialize buzzer PWM
     gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
     slice_buzzer = pwm_gpio_to_slice_num(BUZZER_PIN);
     ch_buzzer = pwm_gpio_to_channel(BUZZER_PIN);
     
-    // Buzzer PWM to 2kHz
-    uint32_t buzzer_div = clock_freq / (BUZZER_PWM_FREQ * (0xFFFF + 1));
-    if (buzzer_div < 1) buzzer_div = 1;
+    // Configure buzzer PWM for 2kHz
+    pwm_config buzzer_config = pwm_get_default_config();
     
-    pwm_set_clkdiv(slice_buzzer, (float)buzzer_div);
-    buzzer_wrap_value = clock_freq / (buzzer_div * BUZZER_PWM_FREQ) - 1;
-    pwm_set_wrap(slice_buzzer, buzzer_wrap_value);
+    // 50MHz / (2000Hz * 1000) = 75 div
+    pwm_config_set_clkdiv(&buzzer_config, 75.0f);
+    pwm_config_set_wrap(&buzzer_config, 999);
     
-    set_servo_angle(90.0);
-    pwm_set_enabled(slice_servo, true);
-
+    pwm_init(slice_buzzer, &buzzer_config, true);
+    
+    // Set initial states
+    set_servo_angle(0.0f);
     buzzer_on_off(false);
-    pwm_set_enabled(slice_buzzer, true);
     
     alarm_state = ALARM_IDLE;
     
-    DBG("Alarm ready: servo on GPIO%d, buzzer on GPIO%d", SERVO_PIN, BUZZER_PIN);
+    DBG("Alarm initialized: servo on GPIO%d, buzzer on GPIO%d", SERVO_PIN, BUZZER_PIN);
+    
+    // Test servo movement
+    DBG("Testing servo movement.");
+    set_servo_angle(180.0f);
+    sleep_ms(500);
+    set_servo_angle(90.0f);
+    sleep_ms(500);
+    set_servo_angle(0.0f);
+    sleep_ms(500);
+    
+    // Test buzzer
+    DBG("Testing buzzer.");
+    buzzer_on_off(true);
+    sleep_ms(200);
+    buzzer_on_off(false);
+    
     return true;
 }
 
@@ -78,7 +91,7 @@ void alarm_activate(void) {
 
         DBG("ALARM ACTIVATED");
 
-        set_servo_angle(0.0);
+        set_servo_angle(0.0f);
         buzzer_on_off(true);
         buzzer_on = true;
     }
@@ -94,38 +107,36 @@ void alarm_process(void) {
         // Check if alarm duration exceeded
         if (now - alarm_start_time > ALARM_DURATION_MS) {
             alarm_state = ALARM_COOLING_DOWN;
-            set_servo_angle(90.0);
+            set_servo_angle(90.0f);
             buzzer_on_off(false);
             DBG("Alarm sequence complete");
             return;
         }
         
+        // Servo sweeping
         if (now - last_servo_update > SERVO_SWEEP_DELAY_MS) {
             switch (servo_pos) {
-                case 0: {
-                    set_servo_angle(180.0);
+                case 0:
+                    set_servo_angle(180.0f);
                     servo_pos = 1;
                     break;
-                }
-
-                case 1: {
-                    set_servo_angle(0.0);
+                case 1:
+                    set_servo_angle(0.0f);
                     servo_pos = 0;
                     break;
-                }
             }
             last_servo_update = now;
         }
         
+        // Buzzer beeping
         if (now - last_buzzer_update > BUZZER_BEEP_DELAY_MS) {
             if (buzzer_beep_count < BUZZER_BEEP_COUNT * 2) {
                 buzzer_on = !buzzer_on;
                 buzzer_on_off(buzzer_on);
                 buzzer_beep_count++;
             } else {
+                // Reset for continuous beeping during alarm
                 buzzer_beep_count = 0;
-                buzzer_on = false;
-                buzzer_on_off(false);
             }
             last_buzzer_update = now;
         }
@@ -152,7 +163,7 @@ bool alarm_is_active(void) {
  */
 void alarm_deinit(void) {
     buzzer_on_off(false);
-    set_servo_angle(90.0);
+    set_servo_angle(90.0f);
     
     pwm_set_enabled(slice_servo, false);
     pwm_set_enabled(slice_buzzer, false);
@@ -167,20 +178,17 @@ void alarm_deinit(void) {
  * @param angle_degrees Desired angle
  */
 static void set_servo_angle(float angle_degrees) {
-    if (angle_degrees < 0.0) {
-        angle_degrees = 0.0;
-    }
-    if (angle_degrees > 180.0) {
-        angle_degrees = 180.0;
-    }
+    // Clamp angle to valid range
+    if (angle_degrees < 0.0f) angle_degrees = 0.0f;
+    if (angle_degrees > 180.0f) angle_degrees = 180.0f;
     
-    // Calculate pulse width
-    uint16_t pulse_width = SERVO_MIN_PULSE + 
-                          (uint16_t)((angle_degrees / 180.0) * (SERVO_MAX_PULSE - SERVO_MIN_PULSE));
+    // 1000us to 2000us
+    uint16_t pulse_width_us = SERVO_MIN_PULSE + 
+                             (uint16_t)((angle_degrees / 180.0f) * (SERVO_MAX_PULSE - SERVO_MIN_PULSE));
     
-    // Convert to PWM
-    uint16_t pwm_level = calculate_servo_pwm_level(pulse_width);
-    pwm_set_chan_level(slice_servo, ch_servo, pwm_level);
+    pwm_set_chan_level(slice_servo, ch_servo, pulse_width_us);
+    
+    DBG("Servo: %.1fdeg -> %dus pulse", angle_degrees, pulse_width_us);
 }
 
 /**
@@ -188,20 +196,10 @@ static void set_servo_angle(float angle_degrees) {
  * @param enable true to turn on, false to turn off
  */
 static void buzzer_on_off(bool enable) {
-    if (true == enable) {
-        uint16_t level = (buzzer_wrap_value * BUZZER_DUTY_CYCLE) / 100;
-        pwm_set_chan_level(slice_buzzer, ch_buzzer, level);
+    if (enable) {
+        // 50% duty cycle for 2kHz
+        pwm_set_chan_level(slice_buzzer, ch_buzzer, 500);
     } else {
         pwm_set_chan_level(slice_buzzer, ch_buzzer, 0);
     }
-}
-
-/**
- * @brief Calculate PWM level for servo pulse width
- * @param pulse_width_us Pulse width in microseconds
- * @return PWM level value
- */
-static uint16_t calculate_servo_pwm_level(uint16_t pulse_width_us) {
-    uint32_t period_us = 1000000 / SERVO_PWM_FREQ;
-    return (uint16_t)((pulse_width_us * servo_wrap_value) / period_us);
 }
