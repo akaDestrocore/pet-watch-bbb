@@ -52,3 +52,7 @@ snapshots/
 
 # VS Code files
 .vscode/
+
+
+# OpenCV
+opencv/
