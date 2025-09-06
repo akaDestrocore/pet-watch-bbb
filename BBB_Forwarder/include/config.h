@@ -11,7 +11,8 @@
 
 // BBB communication
 #define BBB_UART_ID             uart1
-#define BBB_UART_BAUD           115200
+#define BBB_UART_BAUD           460800
+
 #define BBB_UART_TX_PIN         4
 #define BBB_UART_RX_PIN         5
 

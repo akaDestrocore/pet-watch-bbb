@@ -15,9 +15,9 @@ class SnapshotHandler(BaseHTTPRequestHandler):
             image = Image.open(io.BytesIO(snapshot_data))
             results = model(image)
             
-            # Check for cats (class 15) or dogs (class 16)
+            # Check for cats (class 15) or dogs (class 16), sheeps(17) and bears (21)
             detections = results.pandas().xyxy[0]
-            pet_found = any(detection['class'] in [15, 16] for _, detection in detections.iterrows())
+            pet_found = any(detection['class'] in [15, 16, 17, 21] for _, detection in detections.iterrows())
             
             if pet_found:
                 self.send_response(200)
@@ -36,7 +36,9 @@ class SnapshotHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print("Loading YOLOv5...")
-    model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+    model = torch.hub.load('ultralytics/yolov5', 'yolov5l', pretrained=True)
+    model.conf = 0.35
+    model.iou = 0.45
     print("Starting optimized server on port 7702...")
     
     server = HTTPServer(('0.0.0.0', 7702), SnapshotHandler)
