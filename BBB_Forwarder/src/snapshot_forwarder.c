@@ -241,14 +241,17 @@ static err_t server_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *
     DBG("Received response from PC: %.100s", response);
     
     // Look for alarm in status line
-    if (NULL != strstr(response, "200 ALARM")) {
+    if (NULL != strstr(response, "200 ALARM") || NULL != strstr(response, "ALARM")) {
         DBG("Received ALARM command from server");
         alarm_activate();
         forwarder.forward_complete = true;
         DBG("Transfer successful - received HTTP 200 ALARM");
-    } else if (NULL != strstr(response, "200")) {
+    } else if (NULL != strstr(response, "200") || NULL != strstr(response, "NO_PETS")) {
         forwarder.forward_complete = true;
         DBG("Transfer successful - received HTTP 200");
+    } else {
+        DBG("Received unexpected response from server");
+        forwarder.forward_complete = true;
     }
 
     pbuf_free(p);

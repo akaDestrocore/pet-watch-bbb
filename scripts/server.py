@@ -58,44 +58,53 @@ This is an automated alert from your pet detection system.
 
     def do_POST(self):
         if self.path == '/image':
-            content_len = int(self.headers.get('Content-Length', 0))
-            snapshot_data = self.rfile.read(content_len)
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                snapshot_data = self.rfile.read(content_len)
+                
+                # Analyze with YOLOv5
+                image = Image.open(io.BytesIO(snapshot_data))
+                results = SnapshotHandler.model(image)
+                
+                # Check for cats (class 15) or dogs (class 16), sheeps(17) and bears (21)
+                detections = results.pandas().xyxy[0]
+                pet_found = any(detection['class'] in self.target_classes for _, detection in detections.iterrows())
+                
+                if pet_found:
+                    response_body = "ALARM"
+                    self.send_response(200, 'ALARM')
+                    self.send_header('Content-Type', 'text/plain')
+                    self.send_header('Content-Length', str(len(response_body)))
+                    self.send_header('Connection', 'close')  # Changed to close
+                    self.end_headers()
+                    self.wfile.write(response_body.encode('utf-8'))
+                    self.wfile.flush()
+                    print("PET DETECTED - ALARM SENT")
+                    try:
+                        self.send_alarm_notification()
+                    except Exception as e:
+                        print(f"Email notification failed, but alarm was sent: {e}")
+                        
+                else:
+                    response_body = "NO_PETS"
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/plain') 
+                    self.send_header('Content-Length', str(len(response_body)))
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.wfile.write(response_body.encode('utf-8'))
+                    self.wfile.flush()
+                    print("No pets detected - sending NO_PETS response")
+                
+            except Exception as e:
+                print(f"Error processing request: {e}")
+                self.send_error(500, "Internal Server Error")
             
-            # Analyze with YOLOv5
-            image = Image.open(io.BytesIO(snapshot_data))
-            results = SnapshotHandler.model(image)
-            
-            # Check for cats (class 15) or dogs (class 16), sheeps(17) and bears (21)
-            detections = results.pandas().xyxy[0]
-            pet_found = any(detection['class'] in self.target_classes for _, detection in detections.iterrows())
-            
-            if pet_found:
-                response_body = "ALARM"
-                self.send_response(200, 'ALARM')
-                self.send_header('Content-Type', 'text/plain')
-                self.send_header('Content-Length', str(len(response_body)))
-                self.send_header('Connection', 'keep-alive')
-                self.end_headers()
-                self.wfile.write(response_body.encode('utf-8'))
-                self.wfile.flush()
-                print("PET DETECTED - ALARM SENT")
-                time.sleep(0.5)
+            finally:
                 try:
-                    self.send_alarm_notification()
-                except Exception as e:
-                    print(f"Email notification failed, but alarm was sent: {e}")
-            else:
-                # Send NO_PETS response
-                response_body = "NO_PETS"
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/plain') 
-                self.send_header('Content-Length', str(len(response_body)))
-                self.send_header('Connection', 'keep-alive')
-                self.end_headers()
-                self.wfile.write(response_body.encode('utf-8'))
-                self.wfile.flush()
-                print("No pets detected - sending NO_PETS response")
-                time.sleep(0.5)
+                    self.connection.close()
+                except:
+                    pass
     
     def log_message(self, format, *args):
         # mute spam
