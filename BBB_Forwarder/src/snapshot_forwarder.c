@@ -240,14 +240,13 @@ static err_t server_recv_callback(void *arg, struct tcp_pcb *tpcb, struct pbuf *
     
     DBG("Received response from PC: %.100s", response);
     
-    // Look for alarm command
-    if (NULL != strstr(response, "ALARM")) {
+    // Look for alarm in status line
+    if (NULL != strstr(response, "200 ALARM")) {
         DBG("Received ALARM command from server");
         alarm_activate();
-    }
-
-    // Check for HTTP 200
-    if (NULL != strstr(response, "200 OK") || NULL != strstr(response, "HTTP/1.1 200")) {
+        forwarder.forward_complete = true;
+        DBG("Transfer successful - received HTTP 200 ALARM");
+    } else if (NULL != strstr(response, "200")) {
         forwarder.forward_complete = true;
         DBG("Transfer successful - received HTTP 200");
     }
