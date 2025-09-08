@@ -3,10 +3,11 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import io
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 import datetime
 
 class SnapshotHandler(BaseHTTPRequestHandler):
@@ -22,7 +23,28 @@ class SnapshotHandler(BaseHTTPRequestHandler):
         
         super().__init__(*args, **kwargs)
 
-    def send_alarm_notification(self):
+    def draw_detection_boxes(self, image, detections):
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.load_default()
+
+        class_names = {15: 'Cat', 16: 'Dog', 17: 'Sheep', 21: 'Bear'}
+        colors = {'Cat': 'green', 'Dog': 'blue', 'Sheep': 'red', 'Bear': 'orange'}
+
+        for _, detection in detections.iterrows():
+            if detection['class'] in self.target_classes:
+                class_name = class_names.get(detection['class'], 'Pet')
+                color = colors.get(class_name, 'green')
+                # bounding box
+                x1, y1, x2, y2 = int(detection['xmin']), int(detection['ymin']), int(detection['xmax']), int(detection['ymax'])
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+                # label
+                confidence = detection['confidence']
+                label = f"{class_name} {confidence:.2f}"
+                draw.text((x1, y1-10), label, fill=color, font=font)
+
+        return image
+
+    def send_alarm_notification(self, edited_img_data):
         try:
             msg = MIMEMultipart()
             msg['From'] = self.email_user
@@ -43,6 +65,12 @@ This is an automated alert from your pet detection system.
             
             msg.attach(MIMEText(body, 'plain'))
 
+            # Add image
+            framebox_attachment = MIMEImage(edited_img_data)
+            framebox_attachment.add_header('Content-Disposition', 
+                                          f'attachment; filename="pet_detected_annotated_{timestamp.replace(":", "-").replace(" ", "_")}.jpg"')
+            msg.attach(framebox_attachment)
+
             # Send email
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
             server.starttls()
@@ -52,8 +80,10 @@ This is an automated alert from your pet detection system.
             server.quit()
             
             print(f"Alarm notification sent to {', '.join(self.notification_emails)}")
+            return True
         except Exception as e:
             print(f"Error sending alarm notification: {e}")
+            return False
 
     def do_POST(self):
         if self.path == '/image':
@@ -72,6 +102,12 @@ This is an automated alert from your pet detection system.
                 pet_found = len(pet_detections) > 0
                 
                 if pet_found:
+                    # Create image
+                    edited_img = image.copy()
+                    edited_img = self.draw_detection_boxes(edited_img, pet_detections)
+                    edited_img_data = io.BytesIO()
+                    edited_img.save(edited_img_data, format='JPEG', quality=85)
+                    edited_img_data.seek(0)
                     response_body = "ALARM"
                     self.send_response(200, 'ALARM')
                     self.send_header('Content-Type', 'text/plain')
@@ -86,7 +122,7 @@ This is an automated alert from your pet detection system.
                         class_name = class_names.get(detection['class'], 'Pet')
                         print(f"{class_name} (conf: {detection['confidence']:.2f})")
                     try:
-                        self.send_alarm_notification()
+                        self.send_alarm_notification(edited_img_data.getvalue())
                     except Exception as e:
                         print(f"Email notification failed, but alarm was sent: {e}")
                         
