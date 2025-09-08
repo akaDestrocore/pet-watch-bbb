@@ -8,7 +8,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import datetime
-import time
 
 class SnapshotHandler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -68,18 +67,24 @@ This is an automated alert from your pet detection system.
                 
                 # Check for cats (class 15) or dogs (class 16), sheeps(17) and bears (21)
                 detections = results.pandas().xyxy[0]
-                pet_found = any(detection['class'] in self.target_classes for _, detection in detections.iterrows())
+                
+                pet_detections = detections[detections['class'].isin(self.target_classes)]
+                pet_found = len(pet_detections) > 0
                 
                 if pet_found:
                     response_body = "ALARM"
                     self.send_response(200, 'ALARM')
                     self.send_header('Content-Type', 'text/plain')
                     self.send_header('Content-Length', str(len(response_body)))
-                    self.send_header('Connection', 'close')  # Changed to close
+                    self.send_header('Connection', 'close')
                     self.end_headers()
                     self.wfile.write(response_body.encode('utf-8'))
                     self.wfile.flush()
                     print("PET DETECTED - ALARM SENT")
+                    for _, detection in pet_detections.iterrows():
+                        class_names = {15: 'Cat', 16: 'Dog', 17: 'Sheep', 21: 'Bear'}
+                        class_name = class_names.get(detection['class'], 'Pet')
+                        print(f"{class_name} (conf: {detection['confidence']:.2f})")
                     try:
                         self.send_alarm_notification()
                     except Exception as e:
