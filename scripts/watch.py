@@ -64,28 +64,13 @@ def main():
         print("Cannot open camera")
         exit()
     
-    # Setup cam parameters
-    cap.set(cv.CAP_PROP_FOURCC, cv.VideoWriter_fourcc('M', 'J', 'P', 'G'))
     cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv.CAP_PROP_BUFFERSIZE, 1)
-    cap.set(cv.CAP_PROP_FPS, 15) 
-
-    # Check what resolution we actually got
-    actual_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-    actual_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-    print(f"Camera resolution: {actual_width}x{actual_height}")
-    
-    # Fall back to 640x480
-    if actual_width < 1280:
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
-        cap.set(cv.CAP_PROP_BUFFERSIZE, 1)
-        cap.set(cv.CAP_PROP_FPS, 10)
-        print("Falling back to 640x480")
+    cap.set(cv.CAP_PROP_FPS, 10)
     
     cap.set(cv.CAP_PROP_AUTO_EXPOSURE, 1)
-    cap.set(cv.CAP_PROP_AUTOFOCUS, 1)
+    cap.set(cv.CAP_PROP_EXPOSURE, 1500) 
 
     # try open serial
     try:
