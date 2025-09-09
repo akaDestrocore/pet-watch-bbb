@@ -25,7 +25,13 @@ class SnapshotHandler(BaseHTTPRequestHandler):
 
     def draw_detection_boxes(self, image, detections):
         draw = ImageDraw.Draw(image)
-        font = ImageFont.load_default()
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        except (OSError, IOError):
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 20)
+            except (OSError, IOError):
+                font = ImageFont.truetype("arial.ttf", 20)
 
         class_names = {15: 'Cat', 16: 'Dog', 17: 'Sheep', 21: 'Bear'}
         colors = {'Cat': 'green', 'Dog': 'blue', 'Sheep': 'red', 'Bear': 'orange'}
@@ -40,7 +46,22 @@ class SnapshotHandler(BaseHTTPRequestHandler):
                 # label
                 confidence = detection['confidence']
                 label = f"{class_name} {confidence:.2f}"
-                draw.text((x1, y1-10), label, fill=color, font=font)
+                try:
+                    bbox = draw.textbbox((0, 0), label, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                except AttributeError:
+                    text_width, text_height = draw.textsize(label, font=font)
+                
+                # inside the box
+                text_x = x1 + 5
+                text_y = y1 + 5
+                bg_x1, bg_y1 = text_x - 2, text_y - 2
+                bg_x2, bg_y2 = text_x + text_width + 2, text_y + text_height + 2
+                bg_x2 = min(bg_x2, x2 - 2)
+                bg_y2 = min(bg_y2, y2 - 2)
+                draw.rectangle([bg_x1, bg_y1, bg_x2, bg_y2], fill=color, outline=color)
+                draw.text((text_x, text_y), label, fill='white', font=font)
 
         return image
 
