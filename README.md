@@ -83,9 +83,8 @@ The Pico uses UART with a ring buffer (interrupt-driven) to handle incoming data
 You might wonder why not just run everything on a single board i.e. RPI 4 or RPI 5. Well, RPI uses Broadcom's SOC. Broadcom doesn't share most of the SOC details unlike TI. Also TI has complete SDKs for their SOCs. But that's not the only reason. Here is my reasoning:
 
 1. **Separation of Concerns**: *BBB handles computationally intensive motion detection, Pico handles networking, server handles AI.* 
-<pre>  
+<b>  
 BBB's capabilities are not enough to run edge model, but even if it was enough - large models work much better and it's practically better to analyze data on faster powerful machines in case it's possible. I used RPI Pico as a forwarder only because I already had it and it's relatively easy to use it as a forwarder thanks to RPI Pico SDK. 
-</pre>
 
 2. **Reliability**: *If WiFi dies, the BBB keeps detecting. If the server goes down, the Pico can still receive frames*
 3. **Modularity**: *Easy to swap components - different cameras, different MCUs, different detection algorithms*
