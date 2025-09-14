@@ -1,0 +1,20 @@
+[Unit]
+Description=PetWatch Motion Detection System
+After=dev-video0.device
+
+Requires=dev-ttyS1.device
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/usr/bin
+Environment=PYTHONPATH=/usr/lib/python3.11/site-packages
+ExecStartPre=/usr/bin/uart-config
+# Wait for everything to start up
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -c /dev/ttyS1 ] && exit 0 || sleep 1; done; exit 1'
+ExecStart=/usr/bin/python3 /usr/bin/petwatch
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
