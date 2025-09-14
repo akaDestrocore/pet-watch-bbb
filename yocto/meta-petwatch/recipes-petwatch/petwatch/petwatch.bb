@@ -18,6 +18,18 @@ do_install() {
     # Python script
     install -d ${D}${bindir}
     install -m 0755 ${S}/watch.py ${D}${bindir}/petwatch
+
+    # UART config
+    install -m 0755 ${S}/uart-config.sh ${D}${bindir}/uart-config
+
+    # Systemd service
+    install -d ${D}${systemd_unitdir}/system
+    install -m 0644 ${S}/petwatch.service ${D}${systemd_unitdir}/system/
+
+    # Enable service
+    install -d ${D}${sysconfdir}/systemd/system/multi-user.target.wants
+    ln -sf ${systemd_unitdir}/system/petwatch.service \
+        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/
 }
 
 FILES:${PN} += "${systemd_unitdir}/system/petwatch.service \
@@ -25,3 +37,5 @@ FILES:${PN} += "${systemd_unitdir}/system/petwatch.service \
 
 inherit systemd
 SYSTEMD_SERVICE:${PN} = "petwatch.service"
+SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
