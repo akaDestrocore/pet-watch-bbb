@@ -6,7 +6,7 @@
 #define WIFI_PASSWORD           "SomePassword"
 
 // Server configuration
-#define PC_SERVER_IP            "192.168.2.107"
+#define PC_SERVER_IP            "192.168.1.1XX"
 #define PC_SERVER_PORT          7702
 
 // BBB communication
