@@ -55,9 +55,9 @@ flowchart TD
 - [x] YOLOv5-based detection server with email notifications
 - [x] Framed UART protocol
 - [ ] Yocto Linux image for BeagleBone Black
-- [ ] Hardware integration (servo for water sprayer, buzzer)
+- [x] Hardware integration (servo for water sprayer, buzzer)
 - [x] Fine-tuning detection sensitivity
-- [ ] Wiring diagrams
+- [x] Wiring diagrams
 - [ ] Installation scripts and setup automation
 
 ## Technical Deep Dive
