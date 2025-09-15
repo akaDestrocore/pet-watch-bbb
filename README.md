@@ -62,6 +62,8 @@ flowchart TD
 
 ## Technical Deep Dive
 
+![Wiring diagram](wiring_diagram.png)
+
 ### UART Frame Protocol
 
 To reliably transfer JPEG images between the BBB and Pico we have to use framing protocol with CRC. All multi-byte values use little-endian encoding:
