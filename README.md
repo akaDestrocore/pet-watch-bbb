@@ -137,8 +137,8 @@ git format-patch -1 HEAD
 ```bash
 # Clone Yocto (kirkstone branch)
 git clone -b kirkstone git://git.yoctoproject.org/poky
-cd poky
 git clone -b kirkstone git://git.openembedded.org/meta-openembedded
+git clone -b kirkstone git://git.yoctoproject.org/meta-arm
 git clone -b kirkstone git://git.yoctoproject.org/meta-ti
 
 # Add meta-petwatch layer (copy from this repo)
@@ -147,7 +147,11 @@ cp -r /path/to/this/repo/meta-petwatch .
 # Setup build environment  
 source <sourcedir>/poky/oe-init-build-env build
 bitbake-layers add-layer /path/to/this/repo/meta-petwatch
-echo 'MACHINE = "beaglebone-yocto"' >> conf/local.conf
+echo 'MACHINE ?= "beaglebone"' >> conf/local.conf
+# comment out machines other than "beaglebone"
+echo 'DISTRO_FEATURES:append = " systemd"' >> conf/local.conf
+echo 'VIRTUAL-RUNTIME_init_manager = " systemd"' >> conf/local.conf
+echo 'VIRTUAL-RUNTIME_initscripts = " systemd-compat-units"' >> conf/local.conf
 
 # Build image
 bitbake petwatch-image
@@ -176,8 +180,8 @@ bitbake petwatch-image
 ### Network Settings
 Edit `BBB_pico_forwarder/include/config.h`:
 ```c
-#define WIFI_SSID               "YourWiFiName"
-#define WIFI_PASSWORD           "YourWiFiPassword" 
+#define WIFI_SSID               "SomeSSID"
+#define WIFI_PASSWORD           "SomePassword" 
 #define PC_SERVER_IP            "192.168.1.1XX"
 #define PC_SERVER_PORT          7702
 ```
@@ -242,4 +246,5 @@ echo "test" > /dev/ttyS1
 - Monitor Pico debug output via USB serial
 
 The modular architecture makes it easy to swap components and experiment with different approaches. Whether you're dealing with desk-invading cats or want to monitor pets in general, the system provides a solid foundation to build upon.
+
 
