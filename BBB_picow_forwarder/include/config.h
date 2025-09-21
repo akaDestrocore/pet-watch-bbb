@@ -17,7 +17,7 @@
 #define BBB_UART_RX_PIN         5
 
 // Pin definitions
-#define SERVO_PIN               12
+#define PUMP_RELAY_PIN          12
 #define BUZZER_PIN              14
 
 // Frame protocol configuration
@@ -28,7 +28,7 @@
 #define MAX_RETRY_COUNT         5
 #define INITIAL_RETRY_DELAY_MS  1000
 
-#define DEBUG 1
+#define DEBUG 0
 #ifdef DEBUG
     #define DBG(fmt, ...) printf("DBG: " fmt "\n", ##__VA_ARGS__)
 #else

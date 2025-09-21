@@ -9,13 +9,11 @@
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 
+
 /** 
- * @brief SG90 configuration
+ * @brief Water Pump Relay configuration
 */
-#define SERVO_PWM_FREQ      50
-#define SERVO_MIN_PULSE     1000    // 0 deg
-#define SERVO_MAX_PULSE     2000    // 180 deg
-#define SERVO_CENTER_PULSE  1500    // 90 deg
+#define RELAY_PULSE_MS    100      // Relay pulse duration
 
 /** 
  * @brief Buzzer configuration
@@ -26,11 +24,11 @@
 /** 
  * @brief Alarm timing
 */
-#define ALARM_DURATION_MS    3000  // 3 seconds total alarm
-#define SERVO_SWEEP_COUNT    6
-#define BUZZER_BEEP_COUNT    10
-#define SERVO_SWEEP_DELAY_MS 250
-#define BUZZER_BEEP_DELAY_MS 150
+#define ALARM_DURATION_MS      5000   // 3 seconds total alarm
+#define PUMP_TOGGLE_COUNT      3      // Number of pump toggles
+#define PUMP_TOGGLE_DELAY_MS   1500   // Delay between pump toggles
+#define BUZZER_BEEP_COUNT      10     // Number of beeps
+#define BUZZER_BEEP_DELAY_MS   150    // Delay between buzzer beeps
 
 typedef enum {
     ALARM_IDLE,

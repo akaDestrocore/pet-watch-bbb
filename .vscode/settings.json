@@ -13,5 +13,6 @@
         "alarm.h": "c",
         "stdbool.h": "c"
     },
-    "python.REPL.enableREPLSmartSend": false
+    "python.REPL.enableREPLSmartSend": false,
+    "cmake.sourceDirectory": "/home/destro/bbb-workspace/petwatch/BBB_picow_forwarder"
 }

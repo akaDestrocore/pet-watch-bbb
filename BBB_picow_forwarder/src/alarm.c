@@ -2,39 +2,33 @@
 
 /* Private variables ---------------------------------------------------------*/
 static Alarm_State_t alarm_state = ALARM_IDLE;
-static uint slice_servo, slice_buzzer;
-static uint ch_servo, ch_buzzer;
+static uint slice_buzzer;
+static uint ch_buzzer;
 static uint32_t alarm_start_time = 0;
-static uint32_t last_servo_update, last_buzzer_update = 0;
-static uint8_t servo_pos = 0;
+static uint32_t last_pump_update = 0, last_buzzer_update = 0;
+static uint32_t pump_pulse_start = 0;
+static uint8_t pump_toggle_count  = 0;
 static uint8_t buzzer_beep_count = 0;
 static bool buzzer_on = false;
+static bool pump_is_on = false;
+static bool pump_pulse_active = false;
+static bool initial_pump_done = false;
 
 /* Private function prototypes -----------------------------------------------*/
-static void set_servo_angle(float angle_degrees);
+static void start_pump_pulse(void);
+static void process_pump_pulse(void);
 static void buzzer_on_off(bool enable);
 
 /**
- * @brief Initialize alarm system (servo and buzzer)
+ * @brief Initialize alarm system (water pump and buzzer)
  * @return true on success, false otherwise
  */
 bool alarm_init(void) {
-    // Initialize servo PWM
-    gpio_set_function(SERVO_PIN, GPIO_FUNC_PWM);
-    slice_servo = pwm_gpio_to_slice_num(SERVO_PIN);
-    ch_servo = pwm_gpio_to_channel(SERVO_PIN);
-    
-    // Configure servo PWM for 50Hz (20ms period)
-    // RP2350 default system clock is 150MHz
-    pwm_config servo_config = pwm_get_default_config();
-    
-    // Set div to get 1MHz PWM clock
-    pwm_config_set_clkdiv(&servo_config, 150.0f);
-    
-    // Set wrap to 20000 for 20ms period
-    pwm_config_set_wrap(&servo_config, 19999);
-    
-    pwm_init(slice_servo, &servo_config, true);
+    // Initialize water pump pin
+    gpio_init(PUMP_RELAY_PIN);
+    gpio_set_dir(PUMP_RELAY_PIN, GPIO_IN);
+    gpio_disable_pulls(PUMP_RELAY_PIN);
+    sleep_ms(100);
     
     // Initialize buzzer PWM
     gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
@@ -44,29 +38,17 @@ bool alarm_init(void) {
     // Configure buzzer PWM for 2kHz
     pwm_config buzzer_config = pwm_get_default_config();
     
-    // 50MHz / (2000Hz * 1000) = 75 div
+    // 150MHz / (2000Hz * 1000) = 75 div
     pwm_config_set_clkdiv(&buzzer_config, 75.0f);
     pwm_config_set_wrap(&buzzer_config, 999);
     
     pwm_init(slice_buzzer, &buzzer_config, true);
     
-    // Set initial states
-    set_servo_angle(0.0f);
+    // Set initial state
     buzzer_on_off(false);
-    
+    pump_is_on = false;
     alarm_state = ALARM_IDLE;
-    
-    DBG("Alarm initialized: servo on GPIO%d, buzzer on GPIO%d", SERVO_PIN, BUZZER_PIN);
-    
-    // Test servo movement
-    DBG("Testing servo movement.");
-    set_servo_angle(180.0f);
-    sleep_ms(500);
-    set_servo_angle(90.0f);
-    sleep_ms(500);
-    set_servo_angle(0.0f);
-    sleep_ms(500);
-    
+
     // Test buzzer
     DBG("Testing buzzer.");
     buzzer_on_off(true);
@@ -83,15 +65,13 @@ void alarm_activate(void) {
     if (ALARM_IDLE == alarm_state) {
         alarm_state = ALARM_ACTIVE;
         alarm_start_time = to_ms_since_boot(get_absolute_time());
-        last_servo_update = alarm_start_time;
+        last_pump_update = alarm_start_time;
         last_buzzer_update = alarm_start_time;
-        servo_pos = 0;
+        pump_toggle_count  = 0;
         buzzer_beep_count = 0;
         buzzer_on = false;
 
         DBG("ALARM ACTIVATED");
-
-        set_servo_angle(0.0f);
         buzzer_on_off(true);
         buzzer_on = true;
     }
@@ -102,30 +82,40 @@ void alarm_activate(void) {
  */
 void alarm_process(void) {
     uint32_t now = to_ms_since_boot(get_absolute_time());
+
+    if (true == pump_pulse_active) {
+        process_pump_pulse();
+    }
     
     if (ALARM_ACTIVE == alarm_state) {
         // Check if alarm duration exceeded
         if (now - alarm_start_time > ALARM_DURATION_MS) {
             alarm_state = ALARM_COOLING_DOWN;
-            set_servo_angle(90.0f);
             buzzer_on_off(false);
             DBG("Alarm sequence complete");
             return;
         }
         
-        // Servo sweeping
-        if (now - last_servo_update > SERVO_SWEEP_DELAY_MS) {
-            switch (servo_pos) {
-                case 0:
-                    set_servo_angle(180.0f);
-                    servo_pos = 1;
-                    break;
-                case 1:
-                    set_servo_angle(0.0f);
-                    servo_pos = 0;
-                    break;
+        // Initial pump activation
+        if (!initial_pump_done && !pump_pulse_active) {
+            if (true != pump_is_on) {
+                DBG("Initial pump activation");
+                start_pump_pulse();
             }
-            last_servo_update = now;
+            initial_pump_done = true;
+            last_pump_update = now;
+        }
+        
+        // Handle subsequent pump toggles
+        if (true == initial_pump_done && false == pump_pulse_active && 
+            (now - last_pump_update > PUMP_TOGGLE_DELAY_MS)) {
+            
+            if (pump_toggle_count < PUMP_TOGGLE_COUNT) {
+                DBG("Starting pump toggle %d/%d", pump_toggle_count + 1, PUMP_TOGGLE_COUNT);
+                start_pump_pulse();
+                pump_toggle_count++;
+            }
+            last_pump_update = now;
         }
         
         // Buzzer beeping
@@ -135,7 +125,7 @@ void alarm_process(void) {
                 buzzer_on_off(buzzer_on);
                 buzzer_beep_count++;
             } else {
-                // Reset for continuous beeping during alarm
+                // Reset for continuous beeping
                 buzzer_beep_count = 0;
             }
             last_buzzer_update = now;
@@ -145,6 +135,8 @@ void alarm_process(void) {
         // Prevent continuous triggering
         if (now - alarm_start_time > ALARM_DURATION_MS + 2000) {
             alarm_state = ALARM_IDLE;
+            pump_toggle_count = 0;
+            initial_pump_done = false;
             DBG("Alarm system ready");
         }
     }
@@ -162,33 +154,61 @@ bool alarm_is_active(void) {
  * @brief De-initialize alarm system
  */
 void alarm_deinit(void) {
-    buzzer_on_off(false);
-    set_servo_angle(90.0f);
+    if (true == pump_pulse_active) {
+        gpio_set_dir(PUMP_RELAY_PIN, GPIO_IN);
+        gpio_disable_pulls(PUMP_RELAY_PIN);
+        pump_pulse_active = false;
+    }
     
-    pwm_set_enabled(slice_servo, false);
+    buzzer_on_off(false);
     pwm_set_enabled(slice_buzzer, false);
     
     alarm_state = ALARM_IDLE;
+    pump_toggle_count = 0;
+    initial_pump_done = false;
 }
 
 /* Helper functions ----------------------------------------------------------*/
 
 /**
- * @brief Set servo angle in degrees (0-180)
- * @param angle_degrees Desired angle
+ * @brief Toggle water pump by sending a brief LOW pulse to relay.
+ *        This simulates a button press for the relay module.
  */
-static void set_servo_angle(float angle_degrees) {
-    // Clamp angle to valid range
-    if (angle_degrees < 0.0f) angle_degrees = 0.0f;
-    if (angle_degrees > 180.0f) angle_degrees = 180.0f;
+static void start_pump_pulse(void) {
+    if (true == pump_pulse_active) {
+        return;
+    }
     
-    // 1000us to 2000us
-    uint16_t pulse_width_us = SERVO_MIN_PULSE + 
-                             (uint16_t)((angle_degrees / 180.0f) * (SERVO_MAX_PULSE - SERVO_MIN_PULSE));
+    DBG("Starting pump pulse (current state: %s)", pump_is_on ? "ON" : "OFF");
     
-    pwm_set_chan_level(slice_servo, ch_servo, pulse_width_us);
+    // Start the pulse - set pin to output and drive low
+    gpio_set_dir(PUMP_RELAY_PIN, GPIO_OUT);
+    gpio_put(PUMP_RELAY_PIN, 0);
     
-    DBG("Servo: %.1fdeg -> %dus pulse", angle_degrees, pulse_width_us);
+    pump_pulse_active = true;
+    pump_pulse_start = to_ms_since_boot(get_absolute_time());
+}
+
+/**
+ * @brief Process ongoing pump pulse
+ */
+static void process_pump_pulse(void) {
+    if (true != pump_pulse_active) {
+        return;
+    }
+    
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    
+    if (now - pump_pulse_start >= RELAY_PULSE_MS) {
+        // End the pulse
+        gpio_set_dir(PUMP_RELAY_PIN, GPIO_IN);
+        gpio_disable_pulls(PUMP_RELAY_PIN);
+        
+        pump_pulse_active = false;
+        pump_is_on = !pump_is_on;
+        
+        DBG("Pump pulse complete");
+    }
 }
 
 /**

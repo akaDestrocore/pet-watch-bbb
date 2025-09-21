@@ -48,7 +48,7 @@ pico_set_program_version(BBB_Forwarder "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(BBB_Forwarder 0)
-pico_enable_stdio_usb(BBB_Forwarder 1)
+pico_enable_stdio_usb(BBB_Forwarder 0)
 
 # Add the standard library to the build
 target_link_libraries(BBB_Forwarder
