@@ -1,3 +1,4 @@
+
 # PetWatch - Automated Pet Detection & Deterrent System
 
 Ever had a cat that thinks your desk is their personal playground? Yeah, me too. My cat has this wonderful habit of jumping onto my workspace whenever I step away, hitting keyboard keys, knocking things over and generally causing chaos. Traditional solutions like motion sensors trigger on everything, and manual supervision isn't exactly practical when you're not around.
@@ -54,11 +55,9 @@ flowchart TD
 - [x] Raspberry Pi Pico 2W WiFi forwarding and alarm triggering  
 - [x] YOLOv5-based detection server with email notifications
 - [x] Framed UART protocol
-- [ ] Yocto Linux image for BeagleBone Black
-- [x] Hardware integration (servo for water sprayer, buzzer)
+- [x] Yocto Linux image for BeagleBone Black
 - [x] Fine-tuning detection sensitivity
 - [x] Wiring diagrams
-- [ ] Installation scripts and setup automation
 
 ## Technical Deep Dive
 
@@ -80,12 +79,26 @@ To reliably transfer JPEG images between the BBB and Pico we have to use framing
 
 The Pico uses UART with a ring buffer (interrupt-driven) to handle incoming data, then a state machine parses frames and validates both header and data CRCs.
 
+### Water Pump Control System
+
+The system uses a relay-based water pump control mechanism:
+
+**Relay Control Logic:**
+- Uses a latching relay module that toggles state on brief low pulses
+- The Pico sends low pulses to simulate button presses
+- Pin normally stays in Hi-Z mode to avoid interference
+- Multiple pump toggles during alarm sequence for maximum effectiveness
+
+**Pump Sequence:**
+1. Initial activation when pet is detected
+2. A few additional toggle cycles with 1.5-second intervals
+3. Each toggle sends water stream for effective deterrent action against fluffy intruders
+
 ### Why This Architecture?
 
 You might wonder why not just run everything on a single board i.e. RPI 4 or RPI 5. Well, RPI uses Broadcom's SOC. Broadcom doesn't share most of the SOC details unlike TI. Also TI has complete SDKs for their SOCs. But that's not the only reason. Here is my reasoning:
 
 1. **Separation of Concerns**: *BBB handles computationally intensive motion detection, Pico handles networking, server handles AI.* 
-<b>  
 BBB's capabilities are not enough to run edge model, but even if it was enough - large models work much better and it's practically better to analyze data on faster powerful machines in case it's possible. I used RPI Pico as a forwarder only because I already had it and it's relatively easy to use it as a forwarder thanks to RPI Pico SDK. 
 
 2. **Reliability**: *If WiFi dies, the BBB keeps detecting. If the server goes down, the Pico can still receive frames*
@@ -166,7 +179,7 @@ bitbake petwatch-image
 
 ### Raspberry Pi Pico 2W Connections  
 - **UART1**: GP4 (TX) and GP5 (RX) to BBB UART pins
-- **Servo**: GP12 for servo (atomizer in my case)
+- **Water Pump Relay**: GP12 for relay control signal (connects to relay module input)
 - **Buzzer**: GP14 for audio alerts
 - **Power**: USB or 3.3V supply
 
@@ -184,6 +197,22 @@ Edit `BBB_pico_forwarder/include/config.h`:
 #define WIFI_PASSWORD           "SomePassword" 
 #define PC_SERVER_IP            "192.168.1.1XX"
 #define PC_SERVER_PORT          7702
+```
+
+### Hardware Pin Configuration
+In `BBB_pico_forwarder/include/config.h`:
+```c
+#define PUMP_RELAY_PIN          12
+#define BUZZER_PIN              14
+```
+
+### Alarm Timing Configuration
+Adjust timing parameters in `BBB_pico_forwarder/include/alarm.h`:
+```c
+#define ALARM_DURATION_MS      5000   // Total alarm duration
+#define PUMP_TOGGLE_COUNT      3      // Number of pump activations
+#define PUMP_TOGGLE_DELAY_MS   1500   // Delay between pump toggles
+#define RELAY_PULSE_MS         100    // Relay pulse duration
 ```
 
 ### Detection Sensitivity
@@ -246,5 +275,3 @@ echo "test" > /dev/ttyS1
 - Monitor Pico debug output via USB serial
 
 The modular architecture makes it easy to swap components and experiment with different approaches. Whether you're dealing with desk-invading cats or want to monitor pets in general, the system provides a solid foundation to build upon.
-
-
